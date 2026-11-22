@@ -1,0 +1,19 @@
+schema_version = "1.0.0"
+
+id = "sanzo_wada_colors"
+version = "1.0.0"
+name = "Sanzo Wada Colors"
+tagline = "Sanzo Wada color combinations for the Shader Editor"
+maintainer = "Matteo Fontana"
+type = "add-on"
+
+tags = ["Node", "Material"]
+
+blender_version_min = "4.2.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
+
+# Reads the bundled colors.json (or a custom local JSON chosen in preferences).
+# No network access.
+[permissions]
+files = "Read a local color library JSON file"
