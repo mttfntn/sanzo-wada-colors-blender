@@ -6,7 +6,7 @@ name = "Sanzo Wada Colors"
 tagline = "Sanzo Wada color combinations for the Shader Editor"
 maintainer = "Matteo Fontana"
 type = "add-on"
-website = "https://github.com/mttfntn/sanzo-wada-blender"
+website = "https://github.com/mttfntn/sanzo-wada-colors-blender"
 
 tags = ["Node", "Material"]
 

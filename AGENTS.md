@@ -107,7 +107,7 @@ blender -b --python-exit-code 1 --python tests/check_installed_package.py   # "P
 
 ## Git
 
-- Remote: `origin` https://github.com/mttfntn/sanzo-wada-blender.git (public, not a fork).
+- Remote: `origin` https://github.com/mttfntn/sanzo-wada-colors-blender.git (public, not a fork).
 - Branch: `main`. Tags: `vX.Y.Z` (annotated). `badges` branch: CI-owned.
 - Ignored: `__pycache__/`, `*.pyc`, `dist/`, `*.zip`, `.DS_Store`, `.mcp.json`, `.claude/`.
 - Not shipped in the zip: everything outside `sanzo_wada_colors/` (docs, tests, tools); LICENSE is added

@@ -12,7 +12,7 @@ It is not a fork: there is no upstream code. The color data (`colors.json`)
 comes from the MIT-licensed [Sanzo Wada project](https://github.com/dblodorn/sanzo-wada)
 by Dain Blodorn, downloaded once from <https://sanzo-wada.dmbk.io/assets/colors.json>
 and bundled; the add-on never goes online. Author: Matteo Fontana.
-Repository: <https://github.com/mttfntn/sanzo-wada-blender> (public).
+Repository: <https://github.com/mttfntn/sanzo-wada-colors-blender> (public).
 
 ## What you need
 

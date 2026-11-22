@@ -4,12 +4,12 @@ Thanks for helping! Bug reports, ideas and pull requests are all welcome.
 
 ## Reporting a bug or suggesting a feature
 
-Open an [issue](https://github.com/mttfntn/sanzo-wada-blender/issues/new/choose) and pick a form:
+Open an [issue](https://github.com/mttfntn/sanzo-wada-colors-blender/issues/new/choose) and pick a form:
 
 - **Bug report:** say which Blender version, add-on version and render engine you use (and your OctaneBlender version if it involves Octane), and the steps to reproduce.
 - **Feature request:** describe what you're trying to do, not only the solution you have in mind.
 
-First, check whether someone has already opened an issue for the same thing, and read the README's [known limits](https://github.com/mttfntn/sanzo-wada-blender#known-limits).
+First, check whether someone has already opened an issue for the same thing, and read the README's [known limits](https://github.com/mttfntn/sanzo-wada-colors-blender#known-limits).
 
 ## Octane users
 

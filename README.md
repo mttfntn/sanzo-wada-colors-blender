@@ -1,11 +1,11 @@
 # Sanzo Wada Colors
 
-[![Blender](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmttfntn%2Fsanzo-wada-blender%2Fmain%2Fsanzo_wada_colors%2Fblender_manifest.toml&query=%24.blender_version_min&label=Blender&color=E87D0D&logo=blender&logoColor=white)](https://www.blender.org/download/)
-[![Release](https://img.shields.io/github/v/release/mttfntn/sanzo-wada-blender)](https://github.com/mttfntn/sanzo-wada-blender/releases/latest)
-[![Download size](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmttfntn%2Fsanzo-wada-blender%2Fbadges%2Frelease-size.json)](https://github.com/mttfntn/sanzo-wada-blender/releases/latest)
-[![Tests](https://github.com/mttfntn/sanzo-wada-blender/actions/workflows/ci.yml/badge.svg)](https://github.com/mttfntn/sanzo-wada-blender/actions/workflows/ci.yml)
-[![License](https://img.shields.io/github/license/mttfntn/sanzo-wada-blender)](LICENSE)
-[![Language](https://img.shields.io/github/languages/top/mttfntn/sanzo-wada-blender)](sanzo_wada_colors/__init__.py)
+[![Blender](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmttfntn%2Fsanzo-wada-colors-blender%2Fmain%2Fsanzo_wada_colors%2Fblender_manifest.toml&query=%24.blender_version_min&label=Blender&color=E87D0D&logo=blender&logoColor=white)](https://www.blender.org/download/)
+[![Release](https://img.shields.io/github/v/release/mttfntn/sanzo-wada-colors-blender)](https://github.com/mttfntn/sanzo-wada-colors-blender/releases/latest)
+[![Download size](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmttfntn%2Fsanzo-wada-colors-blender%2Fbadges%2Frelease-size.json)](https://github.com/mttfntn/sanzo-wada-colors-blender/releases/latest)
+[![Tests](https://github.com/mttfntn/sanzo-wada-colors-blender/actions/workflows/ci.yml/badge.svg)](https://github.com/mttfntn/sanzo-wada-colors-blender/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/mttfntn/sanzo-wada-colors-blender)](LICENSE)
+[![Language](https://img.shields.io/github/languages/top/mttfntn/sanzo-wada-colors-blender)](sanzo_wada_colors/__init__.py)
 [![Color data](https://img.shields.io/badge/color%20data-dblodorn%2Fsanzo--wada-8a5cf6)](https://github.com/dblodorn/sanzo-wada)
 
 A Blender 5.3 add-on that puts the 159 colors and 348 combinations of
@@ -113,7 +113,7 @@ file can't be read.
 Requires **Blender 5.3**.
 
 1. Download `sanzo_wada_colors-<version>.zip` from the
-   [latest release](https://github.com/mttfntn/sanzo-wada-blender/releases/latest).
+   [latest release](https://github.com/mttfntn/sanzo-wada-colors-blender/releases/latest).
 2. In Blender: Edit › Preferences › Get Extensions › ▾ (top right) ›
    **Install from Disk...**, pick the zip. It is enabled right away.
 
@@ -154,7 +154,7 @@ See [HANDOVER.md](HANDOVER.md) for the code layout, tests and releases.
 
 Bug reports, ideas and pull requests are welcome: see
 [CONTRIBUTING.md](CONTRIBUTING.md). Open an issue with one of the
-[forms](https://github.com/mttfntn/sanzo-wada-blender/issues/new/choose); report security problems privately as described
+[forms](https://github.com/mttfntn/sanzo-wada-colors-blender/issues/new/choose); report security problems privately as described
 in [SECURITY.md](SECURITY.md).
 
 ## License
