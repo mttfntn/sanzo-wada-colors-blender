@@ -2,7 +2,6 @@
 
 [![Blender](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmttfntn%2Fsanzo-wada-colors-blender%2Fmain%2Fsanzo_wada_colors%2Fblender_manifest.toml&query=%24.blender_version_min&label=Blender&color=E87D0D&logo=blender&logoColor=white)](https://www.blender.org/download/)
 [![Release](https://img.shields.io/github/v/release/mttfntn/sanzo-wada-colors-blender)](https://github.com/mttfntn/sanzo-wada-colors-blender/releases/latest)
-[![Download size](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmttfntn%2Fsanzo-wada-colors-blender%2Fbadges%2Frelease-size.json)](https://github.com/mttfntn/sanzo-wada-colors-blender/releases/latest)
 [![Tests](https://github.com/mttfntn/sanzo-wada-colors-blender/actions/workflows/ci.yml/badge.svg)](https://github.com/mttfntn/sanzo-wada-colors-blender/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/mttfntn/sanzo-wada-colors-blender)](LICENSE)
 [![Language](https://img.shields.io/github/languages/top/mttfntn/sanzo-wada-colors-blender)](sanzo_wada_colors/__init__.py)
