@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: User guide
+    url: https://github.com/mttfntn/sanzo-wada-blender#using-it
+    about: How the colors, combinations, nodes and Octane support work.
+  - name: Report a security problem privately
+    url: https://github.com/mttfntn/sanzo-wada-blender/security/advisories/new
+    about: Please do not open a public issue for security problems.
