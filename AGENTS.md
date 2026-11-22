@@ -99,7 +99,7 @@ blender -b --python-exit-code 1 --python tests/check_installed_package.py   # "P
 ## Release checklist
 
 1. Bump `version` in `sanzo_wada_colors/blender_manifest.toml`. README badges are live: never
-   hard-code versions.
+   hard-code versions. The download-size badge reads `.github/release-size.json` on `main`; after each release CI updates it with a bot commit on `main`, so pull before your next change.
 2. Run both test modes. Commit and push `main`. Wait for green CI.
 3. `git tag -a vX.Y.Z -m "Sanzo Wada Colors X.Y.Z" -m "<notes>"`, then `git push origin vX.Y.Z`. CI
    checks tag == manifest version, tests, builds and publishes the release with the zip. The notes come
@@ -108,7 +108,7 @@ blender -b --python-exit-code 1 --python tests/check_installed_package.py   # "P
 ## Git
 
 - Remote: `origin` https://github.com/mttfntn/sanzo-wada-colors-blender.git (public, not a fork).
-- Branch: `main` only (keep it that way: no extra branches). Tags: `vX.Y.Z` (annotated).
+- Branch: `main` only (keep it that way: no extra branches; CI commits `.github/release-size.json` to `main` after each release). Tags: `vX.Y.Z` (annotated).
 - Ignored: `__pycache__/`, `*.pyc`, `dist/`, `*.zip`, `.DS_Store`, `.mcp.json`, `.claude/`.
 - Not shipped in the zip: everything outside `sanzo_wada_colors/` (docs, tests, tools); LICENSE is added
   by the build script.

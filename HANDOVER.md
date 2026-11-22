@@ -139,7 +139,7 @@ CI runs all of this except the comparison, on Linux with Blender 5.3.0.
 
 1. Bump `version` in `sanzo_wada_colors/blender_manifest.toml`. The README
    badges are live (shields.io and GitHub), so never hard-code a version in
-   them.
+   them. The download-size badge reads `.github/release-size.json` on `main`; after each release CI updates it with a bot commit on `main`, so pull before your next change.
 2. Run the tests, commit, push to `main` and wait for green CI.
 3. Create an **annotated** tag; its message becomes the release notes:
    `git tag -a v1.2.3 -m "Sanzo Wada Colors 1.2.3" -m "- what changed"`, then
