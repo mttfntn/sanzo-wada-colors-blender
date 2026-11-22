@@ -1,0 +1,148 @@
+# Tests on every push / pull request; a pushed version tag (vX.Y.Z) also
+# builds the extension zip and publishes a GitHub release.
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Supported Blender versions: 5.3 only.
+  BLENDER_VERSION: "5.3.0"
+  BLENDER_SERIES: "5.3"
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write   # only used by the release steps (tags)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cache Blender
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/blender
+          key: blender-${{ env.BLENDER_VERSION }}-linux-x64
+
+      - name: Download Blender (retries + official mirrors, checksum verified)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          FILE="blender-${BLENDER_VERSION}-linux-x64.tar.xz"
+          SUMS="blender-${BLENDER_VERSION}.sha256"
+          MIRRORS=(
+            "https://download.blender.org/release/Blender${BLENDER_SERIES}"
+            "https://mirrors.ocf.berkeley.edu/blender/release/Blender${BLENDER_SERIES}"
+            "https://ftp.halifax.rwth-aachen.de/blender/release/Blender${BLENDER_SERIES}"
+            "https://mirror.clarkson.edu/blender/release/Blender${BLENDER_SERIES}"
+          )
+          ok=""
+          for m in "${MIRRORS[@]}"; do
+            echo "Trying $m"
+            if curl -fsSL --retry 4 --retry-delay 5 --retry-all-errors --connect-timeout 20 \
+                   -A "Mozilla/5.0 (CI build)" -o "$SUMS" "$m/$SUMS" && \
+               curl -fSL --retry 4 --retry-delay 5 --retry-all-errors --connect-timeout 20 \
+                   -A "Mozilla/5.0 (CI build)" -o "$FILE" "$m/$FILE" && \
+               grep " $FILE\$" "$SUMS" | sha256sum -c -; then
+              ok=1; break
+            fi
+            echo "Mirror failed: $m"; rm -f "$FILE" "$SUMS"
+          done
+          [ -n "$ok" ] || { echo "All mirrors failed"; exit 1; }
+          mkdir -p ~/blender
+          tar -xf "$FILE" -C ~/blender --strip-components=1
+
+      - name: Install runtime libraries
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libxi6 libxxf86vm1 libxfixes3 libxrender1 libxkbcommon0 libsm6 libgl1 libegl1
+
+      - name: Blender version
+        run: ~/blender/blender --version
+
+      - name: Tests (loaded as an extension)
+        run: python3 tests/run_blender.py --blender ~/blender/blender
+
+      - name: Tests (loaded as a legacy add-on)
+        run: python3 tests/run_blender.py --blender ~/blender/blender --legacy
+
+      - name: Build package
+        run: python3 tools/build_package.py --blender ~/blender/blender
+
+      - name: Install package in a scratch profile and check it
+        run: |
+          export BLENDER_USER_RESOURCES="$RUNNER_TEMP/profile"
+          export BLENDER_USER_CONFIG="$RUNNER_TEMP/profile/config"
+          export BLENDER_USER_SCRIPTS="$RUNNER_TEMP/profile/scripts"
+          export BLENDER_USER_EXTENSIONS="$RUNNER_TEMP/profile/extensions"
+          ~/blender/blender -b --factory-startup --command extension install-file --repo user_default --enable dist/sanzo_wada_colors-*.zip
+          ~/blender/blender -b --python-exit-code 1 --python tests/check_installed_package.py
+
+      # Releases are published from this same job, so no artifact is stored
+      # (artifact storage is an account-wide quota).
+      - name: Fetch the tag itself (annotated message)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: git fetch --force origin "+${GITHUB_REF}:${GITHUB_REF}"
+
+      - name: Check tag matches the manifest version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VER=$(python3 -c "import tomllib;print(tomllib.load(open('sanzo_wada_colors/blender_manifest.toml','rb'))['version'])")
+          [ "$TAG" = "v$VER" ] || { echo "Tag $TAG does not match manifest version $VER"; exit 1; }
+
+      # Safe to re-run: if the release already exists (a re-run of the tag's
+      # workflow), its zip and notes are replaced instead of failing.
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git tag -l --format='%(contents)' "${GITHUB_REF_NAME}" > notes.md
+          [ -s notes.md ] || echo "Release ${GITHUB_REF_NAME}" > notes.md
+          cat notes.md
+          if gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1; then
+            echo "Release exists: updating its zip and notes"
+            gh release upload "${GITHUB_REF_NAME}" dist/sanzo_wada_colors-*.zip --clobber
+            gh release edit "${GITHUB_REF_NAME}" --notes-file notes.md
+            exit 0
+          fi
+          gh release create "${GITHUB_REF_NAME}" dist/sanzo_wada_colors-*.zip \
+            --title "Sanzo Wada Colors ${GITHUB_REF_NAME}" --notes-file notes.md --verify-tag
+
+      # Data for the README's "download size" badge (shields.io endpoint format).
+      # shields.io refuses release-download URLs but reads raw.githubusercontent.com,
+      # so the file goes to a separate one-commit `badges` branch (main is untouched).
+      - name: Update the download-size badge (badges branch)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          work=$(mktemp -d)
+          python3 - "$work/release-size.json" <<'PY'
+          import glob, json, os, sys
+          size = os.path.getsize(glob.glob("dist/*.zip")[0])
+          text = f"{size / 1024:.1f} KB" if size < 1024 ** 2 else f"{size / 1024 ** 2:.1f} MB"
+          json.dump({"schemaVersion": 1, "label": "download size", "message": text, "color": "blue"},
+                    open(sys.argv[1], "w"))
+          print(text)
+          PY
+          cd "$work"
+          git init -q -b badges
+          git add release-size.json
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Download-size badge data for ${GITHUB_REF_NAME}"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/badges
