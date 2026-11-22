@@ -1,19 +1,26 @@
 schema_version = "1.0.0"
 
 id = "sanzo_wada_colors"
-version = "1.0.0"
+version = "1.0.1"
 name = "Sanzo Wada Colors"
 tagline = "Sanzo Wada color combinations for the Shader Editor"
 maintainer = "Matteo Fontana"
 type = "add-on"
+website = "https://github.com/mttfntn/sanzo-wada-blender"
 
 tags = ["Node", "Material"]
 
-blender_version_min = "4.2.0"
+# Supported: Blender 5.3 only (max is exclusive).
+blender_version_min = "5.3.0"
+blender_version_max = "5.4.0"
 
 license = ["SPDX:GPL-3.0-or-later"]
+copyright = ["2026 Matteo Fontana"]
 
-# Reads the bundled colors.json (or a custom local JSON chosen in preferences).
-# No network access.
+# Reads the bundled colors.json, or a custom local JSON chosen in the
+# preferences. No network access.
 [permissions]
 files = "Read a local color library JSON file"
+
+[build]
+paths_exclude_pattern = ["__pycache__/", "/.git/", "/*.zip"]

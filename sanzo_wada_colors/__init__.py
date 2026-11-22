@@ -5,6 +5,20 @@ sidebar, and turn them into RGB nodes, Color Ramps, palettes and node colors.
 
 Data is read from a local JSON file (bundled colors.json by default); nothing
 is fetched from the network.
+
+How the pieces fit together:
+- load_library() parses the JSON into the module-level _DB (colors, lookups,
+  combinations). reload_library() wraps it, keeping any error for the UI.
+- sync_window_managers() mirrors _DB into WindowManager.sanzo_colors, the
+  collection the UI list shows. WindowManager properties are not saved in
+  .blend files, so it is refilled after every file load (_on_load_post) and
+  once after registration (_deferred_init timer, since bpy.data is restricted
+  inside register()).
+- The node helpers (make_rgb_node, make_combo_frame, make_color_ramp,
+  set_node_color) build or recolor nodes in a shader node tree. use_octane()
+  decides whether to create Octane nodes or Blender's (Cycles/EEVEE) nodes.
+- Operators call those helpers on the Shader Editor's edit tree; the two
+  sidebar panels (N > Sanzo Wada) only read data and draw.
 """
 
 import json
@@ -29,6 +43,7 @@ _DB = {
     "error": "",
     "colors": [],       # list of color dicts (sorted by index)
     "by_index": {},     # color index -> color dict
+    "position": {},     # color index -> position in "colors" (and in WindowManager.sanzo_colors)
     "combos": {},       # combination number -> [color index, ...]
 }
 
@@ -38,10 +53,12 @@ _DB = {
 # ---------------------------------------------------------------------------
 
 def _srgb_to_linear(c):
+    """sRGB transfer function, one channel (0..1) to linear."""
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
 
 def _hex_to_srgb(hex_str):
+    """'#rrggbb' (the '#' is optional) to an sRGB tuple of three floats 0..1."""
     h = hex_str.lstrip("#")
     return tuple(int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
 
@@ -56,11 +73,13 @@ def linear_rgba(color):
 # ---------------------------------------------------------------------------
 
 def _prefs():
+    """The add-on preferences, or None when the add-on is not enabled."""
     addon = bpy.context.preferences.addons.get(__package__)
     return addon.preferences if addon else None
 
 
 def library_path():
+    """The custom JSON chosen in the preferences, else the bundled colors.json."""
     prefs = _prefs()
     if prefs and prefs.json_path:
         return bpy.path.abspath(prefs.json_path)
@@ -68,6 +87,13 @@ def library_path():
 
 
 def load_library(path=None):
+    """Parse a color library JSON into _DB. Raises on a missing or invalid file.
+
+    Accepts {"colors": [...]} or a bare list. Each color needs "index" and
+    either "hex" or "rgb_array"; "name", "rgb", "cmyk", "combinations" and
+    "use_count" are optional. Combinations are rebuilt from the colors'
+    "combinations" lists (color indices in ascending order).
+    """
     path = path or library_path()
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
@@ -98,11 +124,16 @@ def load_library(path=None):
             combos.setdefault(n, []).append(c["index"])
 
     _DB.update(path=path, error="", colors=colors,
-               by_index={c["index"]: c for c in colors}, combos=combos)
+               by_index={c["index"]: c for c in colors},
+               position={c["index"]: i for i, c in enumerate(colors)}, combos=combos)
 
 
 def sync_window_managers():
-    """Mirror the library into each WindowManager's collection (for the UI list)."""
+    """Mirror the library into each WindowManager's collection (for the UI list).
+
+    Items are added in _DB["colors"] order, so _DB["position"] also gives an
+    item's position in the collection.
+    """
     for wm in bpy.data.window_managers:
         coll = wm.sanzo_colors
         coll.clear()
@@ -118,15 +149,21 @@ def sync_window_managers():
 
 
 def reload_library():
+    """(Re)load the library from library_path() and refresh the UI list.
+
+    On failure the library is emptied and the message is kept in _DB["error"],
+    which the panels and preferences show.
+    """
     try:
         load_library()
     except Exception as ex:  # keep the UI alive and report the problem
         _DB["error"] = str(ex)
-        _DB.update(colors=[], by_index={}, combos={})
+        _DB.update(colors=[], by_index={}, position={}, combos={})
     sync_window_managers()
 
 
 def active_color(context):
+    """The color dict selected in the UI list, or None."""
     wm = context.window_manager
     if 0 <= wm.sanzo_active < len(wm.sanzo_colors):
         return _DB["by_index"].get(wm.sanzo_colors[wm.sanzo_active].idx)
@@ -134,6 +171,7 @@ def active_color(context):
 
 
 def combo_colors(n):
+    """Color dicts of combination n (empty list if it does not exist)."""
     return [_DB["by_index"][i] for i in _DB["combos"].get(n, [])]
 
 
@@ -142,6 +180,7 @@ def combo_colors(n):
 # ---------------------------------------------------------------------------
 
 def _edit_tree(context):
+    """The shader node tree open in the context's Shader Editor, else None."""
     space = context.space_data
     if space and space.type == 'NODE_EDITOR' and space.tree_type == 'ShaderNodeTree':
         return space.edit_tree
@@ -149,15 +188,14 @@ def _edit_tree(context):
 
 
 def _set_location(node, loc):
-    if hasattr(node, "location_absolute"):  # Blender 4.4+
-        node.location_absolute = loc
-    else:
-        node.location = loc
+    # Absolute, so it is right also for nodes inside a frame.
+    node.location_absolute = loc
 
 
 def _view_center(tree):
-    vc = getattr(tree, "view_center", None)
-    return (vc[0], vc[1]) if vc is not None else (0.0, 0.0)
+    """Where new nodes go: the middle of the editor's current view."""
+    vc = tree.view_center
+    return (vc[0], vc[1])
 
 
 def _deselect_all(tree):
@@ -173,27 +211,31 @@ def _deselect_all(tree):
 # its "default_value" size and subtype (COLOR = linear, COLOR_GAMMA = sRGB).
 
 def _pref(name, default):
+    """A preference value, or `default` when the add-on is not enabled."""
     prefs = _prefs()
     return getattr(prefs, name, default) if prefs else default
 
 
 def octane_available():
+    """True when Octane's RGB node type (name set in the preferences) exists."""
     idname = _pref("octane_rgb_node", "OctaneRGBColor")
-    if hasattr(bpy.types, idname):
-        return True
-    try:  # Python-registered node classes (how OctaneBlender defines its nodes)
-        return bpy.types.Node.bl_rna_get_subclass_py(idname) is not None
-    except Exception:
-        return False
+    # C-defined types are attributes of bpy.types; Python-registered node
+    # classes (how OctaneBlender defines its nodes) are found by bl_idname.
+    return hasattr(bpy.types, idname) or bpy.types.Node.bl_rna_get_subclass_py(idname) is not None
+
+
+def octane_requested(context):
+    """True when the user asked for Octane nodes (Octane target, or Auto with
+    the scene rendering in Octane), whether or not Octane is installed."""
+    target = context.window_manager.sanzo_target
+    if target == 'AUTO':
+        return context.scene.render.engine == 'octane'
+    return target == 'OCTANE'
 
 
 def use_octane(context):
-    target = context.window_manager.sanzo_target
-    if target == 'OCTANE':
-        return True
-    if target == 'BLENDER':
-        return False
-    return context.scene.render.engine == 'octane' and octane_available()
+    """True when new nodes should be Octane nodes: requested and available."""
+    return octane_requested(context) and octane_available()
 
 
 def _color_value(prop_rna, color):
@@ -206,12 +248,14 @@ def _color_value(prop_rna, color):
 
 
 def _is_color_prop(prop_rna):
+    """True for a 3- or 4-float property with a COLOR or COLOR_GAMMA subtype."""
     return (prop_rna is not None and prop_rna.type == 'FLOAT'
             and prop_rna.subtype in {'COLOR', 'COLOR_GAMMA'}
             and prop_rna.array_length in (3, 4))
 
 
 def _write_socket(sock, color):
+    """Set a socket's value if it is a color; returns whether it was set."""
     prop = sock.bl_rna.properties.get("default_value")
     if not _is_color_prop(prop):
         return False
@@ -220,7 +264,11 @@ def _write_socket(sock, color):
 
 
 def _write_node_prop(node, color):
-    """Fallback for nodes that store their color as a node property."""
+    """Fallback for nodes that store their color as a node property.
+
+    Sets the first writable color property, skipping Node.color (the header
+    tint). Returns whether one was found.
+    """
     for prop in node.bl_rna.properties:
         if _is_color_prop(prop) and not prop.is_readonly and prop.identifier != "color":
             setattr(node, prop.identifier, _color_value(prop, color))
@@ -229,14 +277,20 @@ def _write_node_prop(node, color):
 
 
 def _new_octane_node(tree, pref_name, default):
+    """Create the Octane node named in preference `pref_name`; None if that type does not exist."""
     idname = _pref(pref_name, default)
     try:
         return tree.nodes.new(idname)
-    except RuntimeError:
+    except RuntimeError:  # unknown node type
         return None
 
 
 def make_rgb_node(tree, color, loc, parent=None, octane=False):
+    """Add a node holding `color`, labelled with its name and tinted with it.
+
+    Octane's RGB node when `octane` is true (and the type exists), otherwise
+    Blender's RGB node. Selected, at `loc`, optionally inside frame `parent`.
+    """
     node = _new_octane_node(tree, "octane_rgb_node", "OctaneRGBColor") if octane else None
     if node is not None:
         if not (set_node_color(node, color)):
@@ -256,18 +310,24 @@ def make_rgb_node(tree, color, loc, parent=None, octane=False):
 
 def set_node_color(node, color):
     """Put a color into a node: RGB node output, first free color input,
-    or a color property on the node itself (some Octane nodes)."""
+    or a color property on the node itself (some Octane nodes).
+
+    Inputs that are linked, hidden or disabled are skipped. Returns whether
+    anything was set.
+    """
     if node.bl_idname == "ShaderNodeRGB":
         return _write_socket(node.outputs[0], color)
     for sock in node.inputs:
-        if sock.is_linked or sock.hide or not getattr(sock, "enabled", True):
+        if sock.is_linked or sock.hide or not sock.enabled:
             continue
+        # CUSTOM = Python-defined sockets, such as Octane's
         if (sock.type == 'RGBA' or sock.type == 'CUSTOM') and _write_socket(sock, color):
             return True
     return _write_node_prop(node, color)
 
 
 def make_combo_frame(tree, n, origin, octane=False):
+    """Add a frame holding one RGB node per color of combination n, in a row."""
     colors = combo_colors(n)
     frame = tree.nodes.new("NodeFrame")
     frame.label = "Sanzo Wada · Combination %d" % n
@@ -279,7 +339,13 @@ def make_combo_frame(tree, n, origin, octane=False):
 
 
 def make_color_ramp(tree, n, loc, interpolation='CONSTANT', octane=False):
-    """Returns (node, used_octane)."""
+    """Add a color ramp with one stop per color of combination n.
+
+    CONSTANT spreads the stops as equal bands (0, 1/n, 2/n...); LINEAR and
+    EASE put the first stop at 0 and the last at 1. With `octane`, Octane's
+    gradient node is used if it exposes a `color_ramp`, otherwise Blender's
+    Color Ramp. Returns (node, used_octane).
+    """
     colors = combo_colors(n)
     node = None
     if octane:
@@ -317,6 +383,7 @@ def make_color_ramp(tree, n, loc, interpolation='CONSTANT', octane=False):
 # ---------------------------------------------------------------------------
 
 def _get_item_color(self):
+    """Getter of SANZO_PG_color.color: the library's sRGB value for this item."""
     c = _DB["by_index"].get(self.idx)
     return c["srgb"] if c else (0.0, 0.0, 0.0)
 
@@ -327,9 +394,11 @@ def _set_item_color(self, value):
     pass
 
 
+# One row of the UI list (WindowManager.sanzo_colors). `name` (inherited) is
+# "NNN Name #hex", which the list's built-in search filters on.
 class SANZO_PG_color(bpy.types.PropertyGroup):
-    idx: IntProperty()
-    label: StringProperty()
+    idx: IntProperty()       # color index in the book (1..159)
+    label: StringProperty()  # color name
     hex: StringProperty()
     # sRGB swatch. Drag it onto any color field (node sockets, Base Color,
     # world color, paint color...) - Blender converts to linear where needed.
@@ -376,6 +445,9 @@ class SANZO_AddonPreferences(bpy.types.AddonPreferences):
 # Operators
 # ---------------------------------------------------------------------------
 
+# Mixin for operators that edit the open shader node tree (not registered).
+# Comments, not docstrings, on operator/panel classes: Blender shows class
+# docstrings as tooltips.
 class _TreeOp:
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -542,11 +614,13 @@ class SANZO_OT_apply_combo(_TreeOp, bpy.types.Operator):
     bl_idname = "sanzo.apply_combo"
     bl_label = "Distribute to Selected"
     bl_description = ("Assign the combination's colors, in order, to the selected nodes "
-                      "(left to right, top to bottom; cycles if there are more nodes)")
+                      "(column by column from the left, top to bottom in each column; "
+                      "starts again from the first color if there are more nodes)")
 
     def execute(self, context):
         tree = _edit_tree(context)
         colors = combo_colors(context.window_manager.sanzo_combo)
+        # Columns are 50 units wide, so slightly misaligned nodes count as one column.
         nodes = sorted((n for n in tree.nodes if n.select and n.bl_idname != "NodeFrame"),
                        key=lambda n: (round(n.location[0] / 50), -n.location[1]))
         if not colors or not nodes:
@@ -598,6 +672,7 @@ class SANZO_UL_colors(bpy.types.UIList):
         sub.label(text=item.hex)
 
 
+# Mixin for the sidebar panels (not registered): Shader Editor only.
 class _SanzoPanel:
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
@@ -628,8 +703,12 @@ class SANZO_PT_colors(_SanzoPanel, bpy.types.Panel):
 
         row = layout.row(align=True)
         row.prop(wm, "sanzo_target", expand=True)
-        layout.label(text="Nodes for: " + ("Octane" if use_octane(context) else "Cycles / EEVEE"),
-                     icon='SHADING_RENDERED')
+        if use_octane(context):
+            layout.label(text="Nodes for: Octane", icon='SHADING_RENDERED')
+        elif octane_requested(context):
+            layout.label(text="Octane not found: using Cycles / EEVEE nodes", icon='ERROR')
+        else:
+            layout.label(text="Nodes for: Cycles / EEVEE", icon='SHADING_RENDERED')
         layout.label(text="Drag a swatch onto any color field", icon='INFO')
         if _DB["error"]:
             layout.label(text=_DB["error"], icon='ERROR')
@@ -696,12 +775,15 @@ class SANZO_PT_combinations(_SanzoPanel, bpy.types.Panel):
             layout.label(text="No combination with this number", icon='INFO')
             return
 
-        items = {it.idx: it for it in wm.sanzo_colors}
+        # Swatches are the list's own items (draggable). _DB["position"] finds
+        # them without scanning the whole collection on every redraw.
+        coll = wm.sanzo_colors
         strip = layout.row(align=True)
         strip.scale_y = 2.5
         for i in ids:
-            if i in items:
-                strip.prop(items[i], "color", text="")
+            p = _DB["position"].get(i)
+            if p is not None and p < len(coll) and coll[p].idx == i:
+                strip.prop(coll[p], "color", text="")
 
         col = layout.column(align=True)
         for i in ids:
@@ -744,10 +826,12 @@ classes = (
 
 @persistent
 def _on_load_post(*_args):
+    """After a file load: refill the UI list (WindowManager data is not saved)."""
     sync_window_managers()
 
 
 def _deferred_init():
+    """First load of the library, run by a timer right after register()."""
     reload_library()
     return None  # run once
 
@@ -763,7 +847,7 @@ def register():
         description="Which renderer's nodes to create",
         items=[('AUTO', "Auto", "Octane nodes when the scene renders with Octane, otherwise Blender nodes"),
                ('BLENDER', "Cycles/EEVEE", "Blender's own shader nodes"),
-               ('OCTANE', "Octane", "Octane nodes (falls back to Blender nodes if unavailable)")],
+               ('OCTANE', "Octane", "Octane nodes (Blender nodes when Octane is not installed)")],
         default='AUTO')
     wm.sanzo_combo = IntProperty(name="Combination", default=1, min=1, max=999,
                                  description="Combination number from the book")
